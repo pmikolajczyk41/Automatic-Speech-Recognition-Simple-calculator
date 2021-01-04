@@ -23,7 +23,7 @@ def convert_file(wavefile: Path) -> None:
 
 
 def convert_files_within_dir(directory: Path) -> None:
-    for wavefile in directory.rglob("*.wav"):
+    for wavefile in directory.rglob('*.wav'):
         convert_file(wavefile)
 
 
