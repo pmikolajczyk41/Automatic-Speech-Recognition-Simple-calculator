@@ -24,14 +24,16 @@ class State:
         if loop:
             self.add_neigh(self, 1.)
 
-    def normalize_transitions(self) -> None:
-        s = sum(self.trans)
-        self.trans = [t / s for t in self.trans]
+        self.name = None
+
+    def _shrink_transitions(self, free: float) -> None:
+        self.trans = [t * (1. - free) for t in self.trans]
 
     def add_neigh(self, other_state, transition_probability) -> 'State':
+        assert 0. <= transition_probability <= 1.
+        self._shrink_transitions(transition_probability)
         self.neigh.append(other_state)
         self.trans.append(transition_probability)
-        self.normalize_transitions()
         return self
 
     def emitting_logprobability(self, observation: FeatVec) -> float:
@@ -39,10 +41,3 @@ class State:
 
     def emit_observation(self) -> FeatVec:
         return multivariate_normal.rvs(self._means, self._vars)
-
-
-if __name__ == '__main__':
-    s = State(initial_distribution=default_distribution, loop=False)
-    print(s.emitting_logprobability(39 * [0.]))
-    print()
-    print(s.emit_observation())
