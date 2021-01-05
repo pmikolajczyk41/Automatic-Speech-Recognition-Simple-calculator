@@ -2,6 +2,7 @@ from copy import deepcopy
 from statistics import mean, stdev
 from typing import NamedTuple, List, Optional
 
+import numpy as np
 from scipy.stats import multivariate_normal
 
 from data import FeatVec
@@ -40,14 +41,17 @@ class State:
         return self
 
     def emitting_logprobability(self, observation: FeatVec) -> float:
+        if not self.is_emitting:
+            return -np.inf
         return multivariate_normal.logpdf(observation, self._means, self._vars)
 
     def emit_observation(self) -> FeatVec:
         return multivariate_normal.rvs(self._means, self._vars)
 
     def update_distribution(self, data: List[FeatVec], past_importance: float = 0.) -> 'State':
-        by_coordinate = zip(*data)
-        for i, values in enumerate(by_coordinate):
-            self._means[i] = (1. - past_importance) * mean(values) + past_importance * self._means[i]
-            self._vars[i] = (1. - past_importance) * stdev(values) ** 2 + past_importance * self._vars[i]
+        if self.is_emitting:
+            by_coordinate = zip(*data)
+            for i, values in enumerate(by_coordinate):
+                self._means[i] = (1. - past_importance) * mean(values) + past_importance * self._means[i]
+                self._vars[i] = (1. - past_importance) * stdev(values) ** 2 + past_importance * self._vars[i]
         return self
