@@ -103,7 +103,7 @@ class Model:
 
 
 if __name__ == '__main__':
-    m = Model.Path(3)
+    m = Model.Path(4)
     data = provide_mffcs(TRAIN_DIR)
     m.train_uniform(data)
     m.train_viterbi(data, 10)

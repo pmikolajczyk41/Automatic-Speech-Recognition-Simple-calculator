@@ -12,7 +12,7 @@ class Distribution(NamedTuple):
     variances: List[float]
 
 
-DIMENSIONALITY = 39
+DIMENSIONALITY = 2
 default_distribution = Distribution(DIMENSIONALITY * [0.], DIMENSIONALITY * [1.])
 
 
