@@ -1,3 +1,4 @@
+from copy import deepcopy
 from statistics import mean, stdev
 from typing import NamedTuple, List, Optional
 
@@ -11,13 +12,14 @@ class Distribution(NamedTuple):
     variances: List[float]
 
 
-default_distribution = Distribution(39 * [0.], 39 * [1.])
+DIMENSIONALITY = 39
+default_distribution = Distribution(DIMENSIONALITY * [0.], DIMENSIONALITY * [1.])
 
 
 class State:
     def __init__(self, initial_distribution: Optional[Distribution] = None, loop: bool = False):
         if initial_distribution is not None:
-            self.is_emitting, (self._means, self._vars) = True, initial_distribution
+            self.is_emitting, (self._means, self._vars) = True, deepcopy(initial_distribution)
         else:
             self.is_emitting, self._means, self._vars = False, None, None
 
@@ -43,9 +45,9 @@ class State:
     def emit_observation(self) -> FeatVec:
         return multivariate_normal.rvs(self._means, self._vars)
 
-    def update_distribution(self, data: List[FeatVec]) -> 'State':
+    def update_distribution(self, data: List[FeatVec], past_importance: float = 0.) -> 'State':
         by_coordinate = zip(*data)
         for i, values in enumerate(by_coordinate):
-            self._means[i] = mean(values)
-            self._vars[i] = stdev(values) ** 2
+            self._means[i] = (1. - past_importance) * mean(values) + past_importance * self._means[i]
+            self._vars[i] = (1. - past_importance) * stdev(values) ** 2 + past_importance * self._vars[i]
         return self

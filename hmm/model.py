@@ -1,10 +1,11 @@
+from collections import defaultdict
 from itertools import chain
-from typing import List
+from typing import List, Iterable
 
 import numpy as np
 from graphviz import Digraph
 
-from data import TRAIN_DIR
+from data import TRAIN_DIR, FeatVec
 from data.provide import provide_mffcs
 from hmm.state import State, default_distribution
 from hmm.viterbi import viterbi
@@ -62,10 +63,47 @@ class Model:
             avg_loops = len(chunk) / float(nsamples)
             state.trans = [avg_loops / (avg_loops + 1), 1. / (avg_loops + 1)]
 
+    def _assign_observations(self, mapping: defaultdict, obs_sequence: List[FeatVec], state_sequence: List) -> None:
+        obs_id = 0
+        for state_name in state_sequence:
+            if self._states[state_name].is_emitting:
+                mapping[state_name].append(obs_sequence[obs_id])
+                obs_id += 1
+        assert obs_id == len(obs_sequence)
+
+    def _update_transitions(self, transitions: List[Iterable], past_importance: float) -> None:
+        counters = {s.name: len(s.neigh) for s in self._states}
+        nexts = {s.name: defaultdict(lambda: 1) for s in self._states}
+
+        for old_t in transitions:
+            for pred, succ in zip(old_t, old_t[1:]):
+                counters[pred] += 1
+                nexts[pred][succ] += 1
+        for s in self._states:
+            new_transitions = []
+            for n, old_t in zip(s.neigh, s.trans):
+                new_t = nexts[s.name][n.name] / counters[s.name]
+                new_transitions.append((1. - past_importance) * new_t + past_importance * old_t)
+            s.trans = new_transitions
+
+    def train_viterbi(self, data, iterations: int, past_importance: float = 0.) -> None:
+        for _ in range(iterations):
+            transitions = []
+            obs_mapping = defaultdict(list)
+
+            for observation_sequence in data:
+                token = viterbi(self.initial_state(), observation_sequence, self.target_state())
+                print(token.log_probability, token.history)
+                transitions.append(token.history)
+                self._assign_observations(obs_mapping, observation_sequence, token.history)
+            self._update_transitions(transitions, past_importance)
+            for s in self._states:
+                s.update_distribution(obs_mapping[s.name], past_importance)
+        self.render()
+
 
 if __name__ == '__main__':
-    m = Model.Path(5)
+    m = Model.Path(3)
     data = provide_mffcs(TRAIN_DIR)
     m.train_uniform(data)
-    winner = viterbi(m.initial_state(), data[0], m.target_state())
-    print(winner.log_probability, winner.history)
+    m.train_viterbi(data, 10)
