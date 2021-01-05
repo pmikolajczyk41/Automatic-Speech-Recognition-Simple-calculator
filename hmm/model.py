@@ -7,6 +7,7 @@ from graphviz import Digraph
 from data import TRAIN_DIR
 from data.provide import provide_mffcs
 from hmm.state import State, default_distribution
+from hmm.viterbi import viterbi
 
 
 class Model:
@@ -25,6 +26,12 @@ class Model:
         self._states = states
         for id, state in enumerate(states):
             state.name = id
+
+    def initial_state(self) -> State:
+        return self._states[0]
+
+    def target_state(self) -> State:
+        return self._states[-1]
 
     def render(self) -> None:
         self._adj = [[(n.name, tp) for n, tp in zip(s.neigh, s.trans)]
@@ -54,10 +61,11 @@ class Model:
             state.update_distribution(chunk)
             avg_loops = len(chunk) / float(nsamples)
             state.trans = [avg_loops / (avg_loops + 1), 1. / (avg_loops + 1)]
-        self.render()
 
 
 if __name__ == '__main__':
-    m = Model.Path(3)
+    m = Model.Path(5)
     data = provide_mffcs(TRAIN_DIR)
     m.train_uniform(data)
+    winner = viterbi(m.initial_state(), data[0], m.target_state())
+    print(winner.log_probability, winner.history)
