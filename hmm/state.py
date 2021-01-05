@@ -1,3 +1,4 @@
+from statistics import mean, stdev
 from typing import NamedTuple, List, Optional
 
 from scipy.stats import multivariate_normal
@@ -41,3 +42,10 @@ class State:
 
     def emit_observation(self) -> FeatVec:
         return multivariate_normal.rvs(self._means, self._vars)
+
+    def update_distribution(self, data: List[FeatVec]) -> 'State':
+        by_coordinate = zip(*data)
+        for i, values in enumerate(by_coordinate):
+            self._means[i] = mean(values)
+            self._vars[i] = stdev(values) ** 2
+        return self
