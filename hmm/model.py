@@ -1,5 +1,6 @@
 from collections import defaultdict
 from itertools import chain
+from random import randint
 from typing import List, Iterable
 
 import numpy as np
@@ -7,6 +8,7 @@ from graphviz import Digraph
 
 from data import TRAIN_DIR, FeatVec
 from data.provide import provide_mffcs
+from hmm.baum_welch import baum_welch
 from hmm.state import State, default_distribution
 from hmm.viterbi import viterbi
 
@@ -46,7 +48,7 @@ class Model:
         for u in range(n):
             for v, puv in self._adj[u]:
                 dot.edge(str(u), str(v), label=f'{puv:.3f}'.rstrip('0').rstrip('.'))
-        dot.render('model.gv', view=True)
+        dot.render(f'model{randint(0, 10)}.gv', view=True)
 
     @staticmethod
     def _partition(data, nchunks: int):
@@ -99,11 +101,34 @@ class Model:
             self._update_transitions(transitions, past_importance)
             for s in self._states:
                 s.update_distribution(obs_mapping[s.name], past_importance)
-        self.render()
+
+    def _update_transitions_bw(self, gammas, ksis) -> None:
+        for s in filter(lambda s: s.is_emitting, self._states):
+            denominator = sum(gamma[s.name].sum() for gamma in gammas)
+            for nid, n in enumerate(s.neigh):
+                numerator = sum((ksi[s.name, n.name].sum()) for ksi in ksis)
+                s.trans[nid] = numerator / denominator
+
+    def _assign_observations_bw(self, state, gammas, data) -> Iterable[FeatVec]:
+        if state.is_emitting:
+            for observation_sequence, gamma in zip(data, gammas):
+                probs = gamma[state.name] / gamma[state.name].sum()
+                yield (probs[:, np.newaxis] * observation_sequence).sum(axis=0)
+
+    def train_baum_welch(self, data, iterations: int) -> None:
+        for _ in range(iterations):
+            matrices = [baum_welch(self._states, observation_sequence) for observation_sequence in data]
+            gammas, ksis = zip(*matrices)
+
+            self._update_transitions_bw(gammas, ksis)
+            for s in self._states:
+                s.update_distribution(list(self._assign_observations_bw(s, gammas, data)))
 
 
 if __name__ == '__main__':
     m = Model.Path(4)
     data = provide_mffcs(TRAIN_DIR)
     m.train_uniform(data)
-    m.train_viterbi(data, 10)
+    m.train_viterbi(data, 3)
+    m.train_baum_welch(data, 5)
+    m.render()

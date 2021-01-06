@@ -23,9 +23,9 @@ def _compute_forward_backward(e_in, e_out, states, observations):
 
     F, B = np.full((n, m), -np.inf), np.full((n, m), -np.inf)
     F[1, 0] = states[1].emitting_logprobability(observations[0])
-    B[n - 2, -1] = 0.
+    B[n - 1, -1] = 0.
 
-    for j, i in product(range(1, m), range(1, n - 1)):
+    for j, i in product(range(1, m), range(1, n)):
         summands = [F[k, j - 1] + log(tp) for k, tp in e_in[i]]
         F[i, j] = logsumexp(summands) + states[i].emitting_logprobability(observations[j])
 
@@ -39,23 +39,30 @@ def _compute_forward_backward(e_in, e_out, states, observations):
 
 def _compute_gamma(F, B):
     gamma = F + B
-    return gamma - logsumexp(gamma, axis=0)
+    denominator = logsumexp(gamma, axis=0)
+    denominator[denominator == -np.inf] = 0.
+    return gamma - denominator
 
 
 def _compute_ksi(F, B, e_out, states, observations):
     n, m = F.shape
     ksi = np.full((n, n, m), -np.inf)
-    for i, t in product(range(1, n - 1), range(m - 1)):
+    for i, t in product(range(n), range(m - 1)):
         for j, tp in e_out[i]:
             ksi[i, j, t] = F[i, t] + B[j, t + 1] + states[j].emitting_logprobability(observations[t + 1]) + log(tp)
 
-    return ksi - logsumexp(ksi, axis=(0, 1))
+    denominator = logsumexp(ksi, axis=(0, 1))
+    denominator[denominator == -np.inf] = 0.
+    return ksi - denominator
 
 
 def baum_welch(states: List[State], observations: List[FeatVec]):
+    assert (not states[0].is_emitting) and (not states[-1].is_emitting)
     e_in, e_out = _compute_adjacency(states)
+    observations = np.vstack([observations, np.zeros_like(observations[0])])
     F, B = _compute_forward_backward(e_in, e_out, states, observations)
 
-    gamma = _compute_gamma(F, B)
-    ksi = _compute_ksi(F, B, e_out, states, observations)
+    gamma = _compute_gamma(F, B)[:, :-1]
+    ksi = _compute_ksi(F, B, e_out, states, observations)[:, :, :-1]
+    gamma, ksi = np.nan_to_num(np.exp(gamma)), np.nan_to_num(np.exp(ksi))
     return gamma, ksi
