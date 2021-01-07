@@ -1,5 +1,7 @@
+import json
 from collections import defaultdict
 from itertools import chain
+from pathlib import Path
 from random import randint
 from typing import List, Iterable, Set
 
@@ -14,6 +16,9 @@ from hmm.viterbi import viterbi
 
 
 class Model:
+    def _type(self):
+        raise NotImplementedError
+
     def initial_state(self) -> State:
         raise NotImplementedError
 
@@ -43,7 +48,33 @@ class Model:
         for u in range(n):
             for v, puv in adj[u]:
                 dot.edge(str(u), str(v), label=f'{puv:.3f}'.rstrip('0').rstrip('.'))
-        dot.render(f'model{randint(0, 10)}.gv', view=True)
+        dot.render(f'.vis/model{randint(0, 10)}.gv', view=True)
+
+    def save(self, filename: Path) -> None:
+        states = set()
+        self._get_all_states(self.initial_state(), states)
+        states = {s: i for i, s in enumerate(sorted(states, key=lambda s: s.name))}
+
+        data = {'type'         : self._type(),
+                'initial_state': states[self.initial_state()],
+                'target_state' : states[self.target_state()],
+                'states'       : [s.serialize(states) for s in states.keys()]}
+
+        filename.write_text(json.dumps(data))
+
+    @staticmethod
+    def load(filename: Path) -> 'Model':
+        data = json.loads(filename.read_text())
+        states = [State.deserialize(x) for x in data['states']]
+        mapping = {i: states[i] for i in range(len(states))}
+        for i, s in enumerate(states):
+            s.recover_neighbourhood(data['states'][i], mapping)
+            s.name = i
+
+        if data['type'] == 'path':
+            return PathModel.from_states(states)
+        if data['type'] == 'complex':
+            return ComplexModel(states[data['initial_state']], states[data['target_state']])
 
 
 class PathModel(Model):
@@ -57,6 +88,15 @@ class PathModel(Model):
 
         for id, state in enumerate(self._states):
             state.name = id
+
+    @staticmethod
+    def from_states(states: List[State]) -> 'PathModel':
+        newborn = PathModel(0)
+        newborn._states = states
+        return newborn
+
+    def _type(self):
+        return 'path'
 
     def initial_state(self) -> State:
         return self._states[0]
@@ -109,7 +149,7 @@ class PathModel(Model):
 
             for observation_sequence in data:
                 token = viterbi(self.initial_state(), observation_sequence, self.target_state())
-                print(token.log_probability, token.history)
+                # print(token.log_probability, token.history)
                 transitions.append(token.history)
                 self._assign_observations(obs_mapping, observation_sequence, token.history)
             self._update_transitions(transitions, past_importance)
@@ -140,12 +180,14 @@ class PathModel(Model):
 
 
 class ComplexModel(Model):
-    def __init__(self, initial_model: Model):
-        new_target = initial_model.target_state()
-        assert (not new_target.is_emitting) and len(new_target.neigh) == 0
+    def __init__(self, initial_state: State, target_state: State):
+        assert (not target_state.is_emitting) and len(target_state.neigh) == 0
 
-        self._initial_state = initial_model.initial_state()
-        self._target_state = new_target
+        self._initial_state = initial_state
+        self._target_state = target_state
+
+    def _type(self):
+        return 'complex'
 
     def initial_state(self) -> State:
         return self._initial_state
@@ -165,4 +207,7 @@ if __name__ == '__main__':
     m.train_uniform(data)
     m.train_viterbi(data, 3)
     m.train_baum_welch(data, 5)
+    m.save(Path('model.hmm'))
+    m.render()
+    m = Model.load(Path('model.hmm'))
     m.render()

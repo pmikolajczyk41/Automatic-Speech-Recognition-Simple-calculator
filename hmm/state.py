@@ -18,7 +18,7 @@ default_distribution = Distribution(DIMENSIONALITY * [0.], DIMENSIONALITY * [1.]
 
 class State:
     def __init__(self, initial_distribution: Optional[Distribution] = None, loop: bool = False):
-        if initial_distribution is not None:
+        if initial_distribution is not None and None not in initial_distribution:
             self.is_emitting, (self._means, self._vars) = True, deepcopy(initial_distribution)
         else:
             self.is_emitting, self._means, self._vars = False, None, None
@@ -55,4 +55,18 @@ class State:
             for i, values in enumerate(by_coordinate):
                 self._means[i] = (1. - past_importance) * mean(values) + past_importance * self._means[i]
                 self._vars[i] = (1. - past_importance) * stdev(values) ** 2 + past_importance * self._vars[i]
+        return self
+
+    def serialize(self, state_mapping: dict) -> dict:
+        return {'distribution': Distribution(self._means, self._vars),
+                'neigh'       : [state_mapping[n] for n in self.neigh],
+                'trans'       : self.trans}
+
+    @staticmethod
+    def deserialize(data: dict) -> 'State':
+        return State(data['distribution'])
+
+    def recover_neighbourhood(self, data: dict, state_mapping: dict) -> 'State':
+        self.trans = data['trans']
+        self.neigh = [state_mapping[s] for s in data['neigh']]
         return self
