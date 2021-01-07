@@ -1,4 +1,5 @@
 import json
+import sys
 from collections import defaultdict
 from itertools import chain
 from pathlib import Path
@@ -8,8 +9,7 @@ from typing import List, Iterable, Set
 import numpy as np
 from graphviz import Digraph
 
-from data import FeatVec, TRAIN_DIR
-from data.provide import provide_mffcs
+from data import FeatVec
 from hmm.baum_welch import baum_welch
 from hmm.state import State, default_distribution
 from hmm.viterbi import viterbi
@@ -111,7 +111,6 @@ class PathModel(Model):
         return (list(chain.from_iterable(x)) for x in transposed)
 
     def train_uniform(self, data) -> None:
-        # assuming that called on a result of Model.Path()
         nsamples = len(data)
         chunks = self._partition(data, len(self._states) - 2)
         for state, chunk in zip(self._states[1:-1], chunks):
@@ -127,7 +126,7 @@ class PathModel(Model):
                 obs_id += 1
         assert obs_id == len(obs_sequence)
 
-    def _update_transitions(self, transitions: List[Iterable], past_importance: float) -> None:
+    def _update_transitions(self, transitions: List[Iterable]) -> None:
         counters = {s.name: len(s.neigh) for s in self._states}
         nexts = {s.name: defaultdict(lambda: 1) for s in self._states}
 
@@ -139,11 +138,13 @@ class PathModel(Model):
             new_transitions = []
             for n, old_t in zip(s.neigh, s.trans):
                 new_t = nexts[s.name][n.name] / counters[s.name]
-                new_transitions.append((1. - past_importance) * new_t + past_importance * old_t)
+                new_transitions.append(new_t)
             s.trans = new_transitions
 
-    def train_viterbi(self, data, iterations: int, past_importance: float = 0.) -> None:
-        for _ in range(iterations):
+    def train_viterbi(self, data, iterations: int) -> None:
+        for it in range(iterations):
+            sys.stderr.write(f'\rViterbi training: {100 * (it / iterations):.2f}%')
+
             transitions = []
             obs_mapping = defaultdict(list)
 
@@ -152,9 +153,11 @@ class PathModel(Model):
                 # print(token.log_probability, token.history)
                 transitions.append(token.history)
                 self._assign_observations(obs_mapping, observation_sequence, token.history)
-            self._update_transitions(transitions, past_importance)
+            self._update_transitions(transitions)
             for s in self._states:
-                s.update_distribution(obs_mapping[s.name], past_importance)
+                s.update_distribution(obs_mapping[s.name])
+
+        sys.stderr.write(f'\rViterbi training completed\n')
 
     def _update_transitions_bw(self, gammas, ksis) -> None:
         for s in filter(lambda s: s.is_emitting, self._states):
@@ -170,13 +173,17 @@ class PathModel(Model):
                 yield (probs[:, np.newaxis] * observation_sequence).sum(axis=0)
 
     def train_baum_welch(self, data, iterations: int) -> None:
-        for _ in range(iterations):
+        for it in range(iterations):
+            sys.stderr.write(f'\rBaumWelch training: {100 * (it / iterations):.2f}%')
+
             matrices = [baum_welch(self._states, observation_sequence) for observation_sequence in data]
             gammas, ksis = zip(*matrices)
 
             self._update_transitions_bw(gammas, ksis)
             for s in self._states:
                 s.update_distribution(list(self._assign_observations_bw(s, gammas, data)))
+
+        sys.stderr.write(f'\rBaumWelch training completed\n')
 
 
 class ComplexModel(Model):
@@ -199,15 +206,3 @@ class ComplexModel(Model):
         self._target_state.add_neigh(other.initial_state(), 1.0)
         self._target_state = other.target_state()
         return self
-
-
-if __name__ == '__main__':
-    m = PathModel(4)
-    data = provide_mffcs(TRAIN_DIR, 'dummy')
-    m.train_uniform(data)
-    m.train_viterbi(data, 3)
-    m.train_baum_welch(data, 5)
-    m.save(Path('model.hmm'))
-    m.render()
-    m = Model.load(Path('model.hmm'))
-    m.render()

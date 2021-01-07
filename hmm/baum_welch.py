@@ -8,6 +8,8 @@ from scipy.special import logsumexp
 from data import FeatVec
 from hmm.state import State
 
+EPS = 1e-10
+
 
 def _compute_adjacency(states: List[State]) -> Tuple[List[List], List[List]]:
     e_in, e_out = [[] for _ in states], [[] for _ in states]
@@ -26,11 +28,11 @@ def _compute_forward_backward(e_in, e_out, states, observations):
     B[n - 1, -1] = 0.
 
     for j, i in product(range(1, m), range(1, n)):
-        summands = [F[k, j - 1] + log(tp) for k, tp in e_in[i]]
+        summands = [F[k, j - 1] + log(tp + EPS) for k, tp in e_in[i]]
         F[i, j] = logsumexp(summands) + states[i].emitting_logprobability(observations[j])
 
     for j, i in product(range(m - 2, -1, -1), range(n - 2, 0, -1)):
-        summands = [B[k, j + 1] + log(tp) + states[k].emitting_logprobability(observations[j + 1])
+        summands = [B[k, j + 1] + log(tp + EPS) + states[k].emitting_logprobability(observations[j + 1])
                     for k, tp in e_out[i]]
         B[i, j] = logsumexp(summands)
 
@@ -49,7 +51,8 @@ def _compute_ksi(F, B, e_out, states, observations):
     ksi = np.full((n, n, m), -np.inf)
     for i, t in product(range(n), range(m - 1)):
         for j, tp in e_out[i]:
-            ksi[i, j, t] = F[i, t] + B[j, t + 1] + states[j].emitting_logprobability(observations[t + 1]) + log(tp)
+            ksi[i, j, t] = F[i, t] + B[j, t + 1] + log(tp + EPS) \
+                           + states[j].emitting_logprobability(observations[t + 1])
 
     denominator = logsumexp(ksi, axis=(0, 1))
     denominator[denominator == -np.inf] = 0.

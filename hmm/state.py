@@ -12,7 +12,7 @@ class Distribution(NamedTuple):
     variances: List[float]
 
 
-DIMENSIONALITY = 2
+DIMENSIONALITY = 39
 default_distribution = Distribution(DIMENSIONALITY * [0.], DIMENSIONALITY * [1.])
 
 
@@ -49,12 +49,12 @@ class State:
             return multivariate_normal.rvs(self._means, self._vars)
         return None
 
-    def update_distribution(self, data: List[FeatVec], past_importance: float = 0.) -> 'State':
+    def update_distribution(self, data: List[FeatVec]) -> 'State':
         if self.is_emitting:
             by_coordinate = zip(*data)
             for i, values in enumerate(by_coordinate):
-                self._means[i] = (1. - past_importance) * mean(values) + past_importance * self._means[i]
-                self._vars[i] = (1. - past_importance) * stdev(values) ** 2 + past_importance * self._vars[i]
+                self._means[i] = mean(values)
+                self._vars[i] = stdev(values) ** 2
         return self
 
     def serialize(self, state_mapping: dict) -> dict:
