@@ -1,12 +1,12 @@
 from collections import defaultdict
 from itertools import chain
 from random import randint
-from typing import List, Iterable
+from typing import List, Iterable, Set
 
 import numpy as np
 from graphviz import Digraph
 
-from data import TRAIN_DIR, FeatVec
+from data import FeatVec, TRAIN_DIR
 from data.provide import provide_mffcs
 from hmm.baum_welch import baum_welch
 from hmm.state import State, default_distribution
@@ -14,20 +14,48 @@ from hmm.viterbi import viterbi
 
 
 class Model:
-    @classmethod
-    def Path(cls, emitting_length: int) -> 'Model':
-        middle = [State(default_distribution, True) for _ in range(emitting_length)]
-        states = [State()] + middle + [State()]
+    def initial_state(self) -> State:
+        raise NotImplementedError
 
-        states[0].add_neigh(states[1], 1.)
-        for p, n in zip(states[1:], states[2:]):
+    def target_state(self) -> State:
+        raise NotImplementedError
+
+    def _get_all_states(self, current: State, accumulator: Set[State]) -> None:
+        if current not in accumulator:
+            accumulator.add(current)
+            for n in current.neigh:
+                self._get_all_states(n, accumulator)
+
+    def render(self, show_labels: bool = True) -> None:
+        states = set()
+        self._get_all_states(self.initial_state(), states)
+        adj = [[(n.name, tp) for n, tp in zip(s.neigh, s.trans)]
+               for s in sorted(states, key=lambda s: s.name)]
+
+        dot = Digraph(graph_attr={'rankdir': 'LR'}, node_attr={'shape': 'circle'})
+        n = len(states)
+        for s in states:
+            if not s.is_emitting:
+                dot.node(str(s.name), label='', width='0.2', style='filled')
+            else:
+                label = str(s.name) if show_labels else ''
+                dot.node(str(s.name), label=label)
+        for u in range(n):
+            for v, puv in adj[u]:
+                dot.edge(str(u), str(v), label=f'{puv:.3f}'.rstrip('0').rstrip('.'))
+        dot.render(f'model{randint(0, 10)}.gv', view=True)
+
+
+class PathModel(Model):
+    def __init__(self, emitting_length: int):
+        middle = [State(default_distribution, True) for _ in range(emitting_length)]
+        self._states = [State()] + middle + [State()]
+
+        self._states[0].add_neigh(self._states[1], 1.)
+        for p, n in zip(self._states[1:], self._states[2:]):
             p.add_neigh(n, 0.5)
 
-        return Model(states)
-
-    def __init__(self, states: List[State]):
-        self._states = states
-        for id, state in enumerate(states):
+        for id, state in enumerate(self._states):
             state.name = id
 
     def initial_state(self) -> State:
@@ -35,20 +63,6 @@ class Model:
 
     def target_state(self) -> State:
         return self._states[-1]
-
-    def render(self) -> None:
-        self._adj = [[(n.name, tp) for n, tp in zip(s.neigh, s.trans)]
-                     for s in self._states]
-
-        dot = Digraph(graph_attr={'rankdir': 'LR'}, node_attr={'shape': 'circle'})
-        n = len(self._states)
-        for s in self._states:
-            if not s.is_emitting:
-                dot.node(str(s.name), label='', width='0.2', style='filled')
-        for u in range(n):
-            for v, puv in self._adj[u]:
-                dot.edge(str(u), str(v), label=f'{puv:.3f}'.rstrip('0').rstrip('.'))
-        dot.render(f'model{randint(0, 10)}.gv', view=True)
 
     @staticmethod
     def _partition(data, nchunks: int):
@@ -125,9 +139,29 @@ class Model:
                 s.update_distribution(list(self._assign_observations_bw(s, gammas, data)))
 
 
+class ComplexModel(Model):
+    def __init__(self, initial_model: Model):
+        new_target = initial_model.target_state()
+        assert (not new_target.is_emitting) and len(new_target.neigh) == 0
+
+        self._initial_state = initial_model.initial_state()
+        self._target_state = new_target
+
+    def initial_state(self) -> State:
+        return self._initial_state
+
+    def target_state(self) -> State:
+        return self._target_state
+
+    def append(self, other: Model) -> 'ComplexModel':
+        self._target_state.add_neigh(other.initial_state(), 1.0)
+        self._target_state = other.target_state()
+        return self
+
+
 if __name__ == '__main__':
-    m = Model.Path(4)
-    data = provide_mffcs(TRAIN_DIR)
+    m = PathModel(4)
+    data = provide_mffcs(TRAIN_DIR, 'dummy')
     m.train_uniform(data)
     m.train_viterbi(data, 3)
     m.train_baum_welch(data, 5)
