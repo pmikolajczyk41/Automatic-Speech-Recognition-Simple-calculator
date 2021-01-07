@@ -6,9 +6,9 @@ import numpy as np
 from scipy.special import logsumexp
 
 from data import FeatVec
-from hmm.state import State
+from hmm.state import State, NULL_OBSERVATION
 
-EPS = 1e-10
+TP_EPS = 1e-15
 
 
 def _compute_adjacency(states: List[State]) -> Tuple[List[List], List[List]]:
@@ -28,11 +28,11 @@ def _compute_forward_backward(e_in, e_out, states, observations):
     B[n - 1, -1] = 0.
 
     for j, i in product(range(1, m), range(1, n)):
-        summands = [F[k, j - 1] + log(tp + EPS) for k, tp in e_in[i]]
+        summands = [F[k, j - 1] + log(tp + TP_EPS) for k, tp in e_in[i]]
         F[i, j] = logsumexp(summands) + states[i].emitting_logprobability(observations[j])
 
     for j, i in product(range(m - 2, -1, -1), range(n - 2, 0, -1)):
-        summands = [B[k, j + 1] + log(tp + EPS) + states[k].emitting_logprobability(observations[j + 1])
+        summands = [B[k, j + 1] + log(tp + TP_EPS) + states[k].emitting_logprobability(observations[j + 1])
                     for k, tp in e_out[i]]
         B[i, j] = logsumexp(summands)
 
@@ -51,7 +51,7 @@ def _compute_ksi(F, B, e_out, states, observations):
     ksi = np.full((n, n, m), -np.inf)
     for i, t in product(range(n), range(m - 1)):
         for j, tp in e_out[i]:
-            ksi[i, j, t] = F[i, t] + B[j, t + 1] + log(tp + EPS) \
+            ksi[i, j, t] = F[i, t] + B[j, t + 1] + log(tp + TP_EPS) \
                            + states[j].emitting_logprobability(observations[t + 1])
 
     denominator = logsumexp(ksi, axis=(0, 1))
@@ -62,7 +62,7 @@ def _compute_ksi(F, B, e_out, states, observations):
 def baum_welch(states: List[State], observations: List[FeatVec]):
     assert (not states[0].is_emitting) and (not states[-1].is_emitting)
     e_in, e_out = _compute_adjacency(states)
-    observations = np.vstack([observations, np.zeros_like(observations[0])])
+    observations = np.vstack([observations, NULL_OBSERVATION])
     F, B = _compute_forward_backward(e_in, e_out, states, observations)
 
     gamma = _compute_gamma(F, B)[:, :-1]

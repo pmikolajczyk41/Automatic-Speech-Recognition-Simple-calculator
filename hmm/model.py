@@ -142,6 +142,7 @@ class PathModel(Model):
             s.trans = new_transitions
 
     def train_viterbi(self, data, iterations: int) -> None:
+        last_transitions = None
         for it in range(iterations):
             sys.stderr.write(f'\rViterbi training: {100 * (it / iterations):.2f}%')
 
@@ -150,9 +151,14 @@ class PathModel(Model):
 
             for observation_sequence in data:
                 token = viterbi(self.initial_state(), observation_sequence, self.target_state())
-                # print(token.log_probability, token.history)
                 transitions.append(token.history)
                 self._assign_observations(obs_mapping, observation_sequence, token.history)
+
+            if last_transitions == transitions:
+                sys.stderr.write(f'\rViterbi training completed (only {it}/{iterations} iterations was needed)\n')
+                return
+            last_transitions = transitions
+
             self._update_transitions(transitions)
             for s in self._states:
                 s.update_distribution(obs_mapping[s.name])
