@@ -50,8 +50,8 @@ def test_operation(data_dir, version: str = '') -> None:
 
 
 if __name__ == '__main__':
-    # data_dir = TEST_DIR / 'atoms' / 'default-speaker'
-    # test_atoms(data_dir, version='viterbi-')
+    data_dir = TEST_DIR / 'atoms' / 'default-speaker'
+    test_atoms(data_dir, version='bw-')
     #
-    data_dir = TEST_DIR / 'operations' / 'single-operation' / 'default-speaker'
-    test_operation(data_dir, version='viterbi-')
+    # data_dir = TEST_DIR / 'operations' / 'single-operation' / 'default-speaker'
+    # test_operation(data_dir, version='bw-')

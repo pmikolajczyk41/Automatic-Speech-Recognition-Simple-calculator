@@ -15,7 +15,7 @@ class Token:
     def _new_token(self, new_state: State, transition_probability: float) -> 'Token':
         newborn = Token(new_state)
         newborn.history = self.history + newborn.history
-        newborn.log_probability = self.log_probability + log(transition_probability)
+        newborn.log_probability = self.log_probability + log(transition_probability + 1e-9)
         newborn.label = self.label + newborn.label
         return newborn
 
