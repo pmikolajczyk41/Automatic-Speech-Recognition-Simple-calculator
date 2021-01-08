@@ -4,24 +4,24 @@ from random import shuffle
 from typing import List
 
 from calculator import ATOMS
-from data import TRAIN_DIR
+from data import TEST_DIR
 from data.provide import provide_mffcs
 from hmm.model import ComplexModel, Model
 from hmm.state import State
 
 
-def create_digit_recognizer(atom_names: List[str] = ATOMS.keys()) -> ComplexModel:
+def create_digit_recognizer(atom_names: List[str] = ATOMS.keys(), version: str = '') -> ComplexModel:
     root = State()
     model = ComplexModel(root, root)
-    model.append([Model.load(Path(f'trained/{an}.hmm')) for an in atom_names])
+    model.append([Model.load(Path(f'trained/{version}{an}.hmm')) for an in atom_names])
     return model
 
 
-def test_atoms(atom_names: List[str] = ATOMS.keys()) -> None:
-    data = [(sample, an) for an in atom_names for sample in provide_mffcs(TRAIN_DIR, an)]
+def test_atoms(data_dir: Path, atom_names: List[str] = ATOMS.keys(), version: str = '') -> None:
+    data = [(sample, an) for an in atom_names for sample in provide_mffcs(data_dir, an)]
     shuffle(data)
 
-    model = create_digit_recognizer(atom_names)
+    model = create_digit_recognizer(atom_names, version)
 
     nsamples, ok = len(data), 0
     for it, (sample, label) in enumerate(data):
@@ -33,4 +33,5 @@ def test_atoms(atom_names: List[str] = ATOMS.keys()) -> None:
 
 
 if __name__ == '__main__':
-    test_atoms()
+    data_dir = TEST_DIR / 'atoms' / 'speaker-1'
+    test_atoms(data_dir, version='viterbi-')

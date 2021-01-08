@@ -7,7 +7,7 @@ from data.provide import provide_mffcs
 from hmm.model import PathModel
 
 
-def train_atoms(viterbi_iterations: int, bw_iterations: int) -> None:
+def train_atoms(viterbi_iterations: int, bw_iterations: int, version: str = '') -> None:
     for atom_name, emit_length in ATOMS.items():
         sys.stderr.write(f'Training model for \'{atom_name}\'\n')
         data = provide_mffcs(TRAIN_DIR, atom_name)
@@ -23,9 +23,10 @@ def train_atoms(viterbi_iterations: int, bw_iterations: int) -> None:
 
         sys.stderr.write(f'Training completed\n')
 
-        atom_model.save(Path(f'trained/{atom_name}.hmm'))
-        sys.stderr.write(f'Model saved as \'trained/{atom_name}.hmm\'\n\n')
+        filename = Path(f'trained/{version}{atom_name}.hmm')
+        atom_model.save(filename)
+        sys.stderr.write(f'Model saved as \'{filename}\'\n\n')
 
 
 if __name__ == '__main__':
-    train_atoms(1, 0)
+    train_atoms(20, 0, 'viterbi-')
