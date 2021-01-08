@@ -23,6 +23,6 @@ def viterbi(initial_state: State, observations: Iterable[FeatVec], target_state:
     assert not initial_state.is_emitting
     active_tokens = [Token(initial_state)]
     for o in observations:
-        active_tokens = _filter_tokens(_move_tokens(active_tokens, o))
+        active_tokens = list(_filter_tokens(_move_tokens(active_tokens, o)))
     active_tokens = sorted(_move_tokens(active_tokens, None), key=lambda t: t.log_probability, reverse=True)
     return next(filter(lambda t: id(t.state) == id(target_state), active_tokens))

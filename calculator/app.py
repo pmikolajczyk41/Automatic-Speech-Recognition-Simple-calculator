@@ -3,7 +3,7 @@ import tkinter as tk
 
 import sounddevice as sd
 
-from calculator.calculator import Calculator
+from calculator.computer import Computer
 from calculator.recognizers import create_single_operation_recognizer
 from data.convert import wav2mfcc
 from hmm.model import Model
@@ -30,8 +30,8 @@ class App(tk.Frame):
         self._button = tk.Button(self, image=self._mic_photo, command=self._on_click)
         self._button.pack(side=tk.TOP)
 
-        self._result_label = tk.Label(self, font=('Verdana', 15))
-        self._result_label.pack(side=tk.TOP, pady=10)
+        self._result_label = tk.Label(self, font=('Verdana', 15), height=2, bg='white')
+        self._result_label.pack(side=tk.TOP, fill=tk.BOTH)
 
     def _update_state(self, state):
         self._state_label['text'] = state
@@ -43,7 +43,7 @@ class App(tk.Frame):
         self._button['state'] = 'disabled'
 
     def _unfreeze(self):
-        self._button['state'] = 'enabled'
+        self._button['state'] = 'active'
 
     def _on_start_recording(self):
         self._is_recording = True
@@ -55,7 +55,7 @@ class App(tk.Frame):
         self._recording = self._recording[:len(self._recording) - border]
 
     def _display_prediction(self, prediction):
-        self._display_result(Calculator().compute(prediction))
+        self._display_result(Computer().compute(prediction))
 
     def _process(self):
         self._update_state('Processing...')
@@ -84,5 +84,6 @@ class App(tk.Frame):
 if __name__ == "__main__":
     model = create_single_operation_recognizer(version='viterbi-')
     root = tk.Tk()
+    root.title('ASR Calculator')
     App(root, model).pack(side="top", fill="both", expand=True)
     root.mainloop()
