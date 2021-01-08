@@ -1,4 +1,4 @@
-ATOMS = {
+ATOM_LENGTHS = {
     'zero'   : 6,
     'one'    : 7,
     'two'    : 6,
@@ -15,3 +15,9 @@ ATOMS = {
     'by'     : 5,
     'silence': 2,
 }
+
+DIGITS = {'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', }
+OPERATORS = {'plus', 'minus', 'times', 'by'}
+BREAKS = {'silence'}
+
+ATOMS = DIGITS | OPERATORS | BREAKS

@@ -1,14 +1,14 @@
 import sys
 from pathlib import Path
 
-from calculator import ATOMS
+from calculator import ATOM_LENGTHS
 from data import TRAIN_DIR
 from data.provide import provide_mffcs
 from hmm.model import PathModel
 
 
 def train_atoms(viterbi_iterations: int, bw_iterations: int, version: str = '') -> None:
-    for atom_name, emit_length in ATOMS.items():
+    for atom_name, emit_length in ATOM_LENGTHS.items():
         sys.stderr.write(f'Training model for \'{atom_name}\'\n')
         data = provide_mffcs(TRAIN_DIR, atom_name)
 
