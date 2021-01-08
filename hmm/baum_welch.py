@@ -11,12 +11,12 @@ from hmm.state import State, NULL_OBSERVATION
 TP_EPS = 1e-15
 
 
-def _compute_adjacency(states: List[State]) -> Tuple[List[List], List[List]]:
-    e_in, e_out = [[] for _ in states], [[] for _ in states]
+def _compute_adjacency(states: List[State]) -> Tuple[dict, dict]:
+    e_in, e_out = {s: [] for s in states}, {s: [] for s in states}
     for s in states:
         for n, tp in zip(s.neigh, s.trans):
-            e_out[s.name].append((n.name, tp))
-            e_in[n.name].append((s.name, tp))
+            e_out[s].append((n, tp))
+            e_in[n].append((s, tp))
     return e_in, e_out
 
 
@@ -28,12 +28,12 @@ def _compute_forward_backward(e_in, e_out, states, observations):
     B[n - 1, -1] = 0.
 
     for j, i in product(range(1, m), range(1, n)):
-        summands = [F[k, j - 1] + log(tp + TP_EPS) for k, tp in e_in[i]]
+        summands = [F[k.rank, j - 1] + log(tp + TP_EPS) for k, tp in e_in[states[i]]]
         F[i, j] = logsumexp(summands) + states[i].emitting_logprobability(observations[j])
 
     for j, i in product(range(m - 2, -1, -1), range(n - 2, 0, -1)):
-        summands = [B[k, j + 1] + log(tp + TP_EPS) + states[k].emitting_logprobability(observations[j + 1])
-                    for k, tp in e_out[i]]
+        summands = [B[k.rank, j + 1] + log(tp + TP_EPS) + k.emitting_logprobability(observations[j + 1])
+                    for k, tp in e_out[states[i]]]
         B[i, j] = logsumexp(summands)
 
     return F, B
@@ -50,9 +50,9 @@ def _compute_ksi(F, B, e_out, states, observations):
     n, m = F.shape
     ksi = np.full((n, n, m), -np.inf)
     for i, t in product(range(n), range(m - 1)):
-        for j, tp in e_out[i]:
-            ksi[i, j, t] = F[i, t] + B[j, t + 1] + log(tp + TP_EPS) \
-                           + states[j].emitting_logprobability(observations[t + 1])
+        for j, tp in e_out[states[i]]:
+            ksi[i, j.rank, t] = F[i, t] + B[j.rank, t + 1] + log(tp + TP_EPS) \
+                                + j.emitting_logprobability(observations[t + 1])
 
     denominator = logsumexp(ksi, axis=(0, 1))
     denominator[denominator == -np.inf] = 0.

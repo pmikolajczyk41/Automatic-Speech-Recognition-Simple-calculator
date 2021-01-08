@@ -31,29 +31,25 @@ class Model:
             for n in current.neigh:
                 self._get_all_states(n, accumulator)
 
-    def render(self, show_labels: bool = True) -> None:
+    def render(self) -> None:
         states = set()
         self._get_all_states(self.initial_state(), states)
-        adj = [[(n.name, tp) for n, tp in zip(s.neigh, s.trans)]
-               for s in sorted(states, key=lambda s: s.name)]
 
         dot = Digraph(graph_attr={'rankdir': 'LR'}, node_attr={'shape': 'circle'})
-        n = len(states)
         for s in states:
             if not s.is_emitting:
-                dot.node(str(s.name), label='', width='0.2', style='filled')
+                dot.node(str(id(s)), label=s.label, width='0.2', style='filled')
             else:
-                label = str(s.name) if show_labels else ''
-                dot.node(str(s.name), label=label)
-        for u in range(n):
-            for v, puv in adj[u]:
-                dot.edge(str(u), str(v), label=f'{puv:.3f}'.rstrip('0').rstrip('.'))
+                dot.node(str(id(s)), label=s.label)
+        for s in states:
+            for v, puv in zip(s.neigh, s.trans):
+                dot.edge(str(id(s)), str(id(v)), label=f'{puv:.3f}'.rstrip('0').rstrip('.'))
         dot.render(f'.vis/model{randint(0, 10)}.gv', view=True)
 
     def save(self, filename: Path) -> None:
         states = set()
         self._get_all_states(self.initial_state(), states)
-        states = {s: i for i, s in enumerate(sorted(states, key=lambda s: s.name))}
+        states = {s: i for i, s in enumerate(sorted(states, key=lambda s: s.rank))}
 
         data = {'type'         : self._type(),
                 'initial_state': states[self.initial_state()],
@@ -69,30 +65,33 @@ class Model:
         mapping = {i: states[i] for i in range(len(states))}
         for i, s in enumerate(states):
             s.recover_neighbourhood(data['states'][i], mapping)
-            s.name = i
 
         if data['type'] == 'path':
             return PathModel.from_states(states)
         if data['type'] == 'complex':
             return ComplexModel(states[data['initial_state']], states[data['target_state']])
 
+    def predict(self, observation_sequence: Iterable[FeatVec]) -> str:
+        winner = viterbi(self.initial_state(), observation_sequence, self.target_state())
+        return winner.label
+
 
 class PathModel(Model):
-    def __init__(self, emitting_length: int):
-        middle = [State(default_distribution, True) for _ in range(emitting_length)]
-        self._states = [State()] + middle + [State()]
+    def __init__(self, emitting_length: int, label: str = ''):
+        middle = [State(default_distribution, rank=rank + 1) for rank in range(emitting_length)]
+        self._states = [State(rank=0)] + middle + [State(label=label, rank=emitting_length + 1)]
 
         self._states[0].add_neigh(self._states[1], 1.)
         for p, n in zip(self._states[1:], self._states[2:]):
             p.add_neigh(n, 0.5)
-
-        for id, state in enumerate(self._states):
-            state.name = id
+            p.add_neigh(p, 0.5)
 
     @staticmethod
     def from_states(states: List[State]) -> 'PathModel':
         newborn = PathModel(0)
         newborn._states = states
+        for i, s in enumerate(states):
+            assert s.rank == i
         return newborn
 
     def _type(self):
@@ -120,15 +119,15 @@ class PathModel(Model):
 
     def _assign_observations(self, mapping: defaultdict, obs_sequence: List[FeatVec], state_sequence: List) -> None:
         obs_id = 0
-        for state_name in state_sequence:
-            if self._states[state_name].is_emitting:
-                mapping[state_name].append(obs_sequence[obs_id])
+        for state in state_sequence:
+            if state.is_emitting:
+                mapping[state].append(obs_sequence[obs_id])
                 obs_id += 1
         assert obs_id == len(obs_sequence)
 
     def _update_transitions(self, transitions: List[Iterable]) -> None:
-        counters = {s.name: len(s.neigh) for s in self._states}
-        nexts = {s.name: defaultdict(lambda: 1) for s in self._states}
+        counters = {s: len(s.neigh) for s in self._states}
+        nexts = {s: defaultdict(lambda: 1) for s in self._states}
 
         for old_t in transitions:
             for pred, succ in zip(old_t, old_t[1:]):
@@ -137,7 +136,7 @@ class PathModel(Model):
         for s in self._states:
             new_transitions = []
             for n, old_t in zip(s.neigh, s.trans):
-                new_t = nexts[s.name][n.name] / counters[s.name]
+                new_t = nexts[s][n] / counters[s]
                 new_transitions.append(new_t)
             s.trans = new_transitions
 
@@ -160,22 +159,22 @@ class PathModel(Model):
             last_transitions = transitions
 
             self._update_transitions(transitions)
-            for s in self._states:
-                s.update_distribution(obs_mapping[s.name])
+            for s, obs in obs_mapping.items():
+                s.update_distribution(obs)
 
         sys.stderr.write(f'\rViterbi training completed\n')
 
     def _update_transitions_bw(self, gammas, ksis) -> None:
         for s in filter(lambda s: s.is_emitting, self._states):
-            denominator = sum(gamma[s.name].sum() for gamma in gammas)
+            denominator = sum(gamma[s.rank].sum() for gamma in gammas)
             for nid, n in enumerate(s.neigh):
-                numerator = sum((ksi[s.name, n.name].sum()) for ksi in ksis)
+                numerator = sum((ksi[s.rank, n.rank].sum()) for ksi in ksis)
                 s.trans[nid] = numerator / denominator
 
     def _assign_observations_bw(self, state, gammas, data) -> Iterable[FeatVec]:
         if state.is_emitting:
             for observation_sequence, gamma in zip(data, gammas):
-                probs = gamma[state.name] / gamma[state.name].sum()
+                probs = gamma[state.rank] / gamma[state.rank].sum()
                 yield (probs[:, np.newaxis] * observation_sequence).sum(axis=0)
 
     def train_baum_welch(self, data, iterations: int) -> None:
@@ -208,7 +207,10 @@ class ComplexModel(Model):
     def target_state(self) -> State:
         return self._target_state
 
-    def append(self, other: Model) -> 'ComplexModel':
-        self._target_state.add_neigh(other.initial_state(), 1.0)
-        self._target_state = other.target_state()
+    def append(self, others: List[Model]) -> 'ComplexModel':
+        new_target = State()
+        for other in others:
+            self._target_state.add_neigh(other.initial_state(), 1.0 / len(others))
+            other.target_state().add_neigh(new_target, 1.0)
+        self._target_state = new_target
         return self

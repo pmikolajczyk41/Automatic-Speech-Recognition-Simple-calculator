@@ -1,0 +1,17 @@
+ATOMS = {
+    'zero'   : 7,
+    'one'    : 9,
+    'two'    : 7,
+    'three'  : 3,
+    'four'   : 3,
+    'five'   : 4,
+    'six'    : 4,
+    'seven'  : 4,
+    'eight'  : 5,
+    'nine'   : 4,
+    'plus'   : 4,
+    'minus'  : 6,
+    'times'  : 5,
+    'by'     : 3,
+    'silence': 2,
+}

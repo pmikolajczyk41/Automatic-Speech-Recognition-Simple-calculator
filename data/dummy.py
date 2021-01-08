@@ -16,10 +16,6 @@ def generate_dummy_mfccs(nfiles: int,
         n = randint(nframes - nframes_delta, nframes + nframes_delta)
         state_emissions = [int(sd * n) for sd in state_durations]
 
-        # for i, se in enumerate(state_emissions):
-        #     print(' '.join(se * [str(i + 1)]), end=' ')
-        # print()
-
         observations = [multivariate_normal.rvs(mean, stdev, size=se)
                         for se, mean, stdev in zip(state_emissions, means, stdevs)]
         np.savetxt(TRAIN_DIR / f'dummy({file_id}).mfcc', np.vstack(observations))

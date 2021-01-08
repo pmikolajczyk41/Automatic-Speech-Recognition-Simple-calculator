@@ -20,27 +20,24 @@ NULL_OBSERVATION = np.full(DIMENSIONALITY, np.nan)
 
 
 class State:
-    def __init__(self, initial_distribution: Optional[Distribution] = None, loop: bool = False):
+    def __init__(self, initial_distribution: Optional[Distribution] = None, label: str = '', rank: int = 0):
         if initial_distribution is not None and None not in initial_distribution:
             self.is_emitting, (self._means, self._vars) = True, deepcopy(initial_distribution)
         else:
             self.is_emitting, self._means, self._vars = False, None, None
 
         self.neigh, self.trans = [], []
-        if loop:
-            self.add_neigh(self, 1.)
-
-        self.name = None
-
-    def _shrink_transitions(self, free: float) -> None:
-        self.trans = [t * (1. - free) for t in self.trans]
+        self.label = label
+        self.rank = rank
 
     def add_neigh(self, other_state, transition_probability) -> 'State':
-        assert 0. <= transition_probability <= 1.
-        self._shrink_transitions(transition_probability)
         self.neigh.append(other_state)
         self.trans.append(transition_probability)
         return self
+
+    def normalize_transitions(self) -> None:
+        s = sum(self.trans)
+        self.trans = [t / s for t in self.trans]
 
     def emitting_logprobability(self, observation: FeatVec) -> float:
         if (np.isnan(observation).any()):
@@ -65,11 +62,13 @@ class State:
     def serialize(self, state_mapping: dict) -> dict:
         return {'distribution': Distribution(self._means, self._vars),
                 'neigh'       : [state_mapping[n] for n in self.neigh],
-                'trans'       : self.trans}
+                'trans'       : self.trans,
+                'label'       : self.label,
+                'rank'        : self.rank}
 
     @staticmethod
     def deserialize(data: dict) -> 'State':
-        return State(data['distribution'])
+        return State(data['distribution'], data['label'], data['rank'])
 
     def recover_neighbourhood(self, data: dict, state_mapping: dict) -> 'State':
         self.trans = data['trans']
