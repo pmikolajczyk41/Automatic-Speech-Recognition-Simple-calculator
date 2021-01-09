@@ -60,7 +60,7 @@ class App(tk.Frame):
     def _process(self):
         self._update_state('Processing...')
         mfcc = wav2mfcc(RATE, self._recording)
-        prediction = self._model.predict(mfcc)
+        prediction = self._model.predict(mfcc, 70)
         self._display_prediction(prediction)
         self._update_state('Ready')
 
