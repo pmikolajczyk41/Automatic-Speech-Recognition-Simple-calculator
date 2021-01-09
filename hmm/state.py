@@ -51,13 +51,20 @@ class State:
             return multivariate_normal.rvs(self._means, self._vars)
         return NULL_OBSERVATION
 
-    def update_distribution(self, data: List[FeatVec]) -> 'State':
+    def update_distribution(self, data: List[FeatVec]) -> None:
         if self.is_emitting:
             by_coordinate = zip(*data)
             for i, values in enumerate(by_coordinate):
                 self._means[i] = mean(values)
                 self._vars[i] = stdev(values) ** 2
-        return self
+
+    def update_distribution_weighted(self, data: List[FeatVec], weights: List[float]) -> None:
+        if self.is_emitting:
+            by_coordinate = zip(*data)
+            for i, values in enumerate(by_coordinate):
+                self._means[i] = np.average(values, weights=weights)
+                self._vars[i] = np.average((values - self._means[i]) ** 2, weights=weights)
+        return None
 
     def serialize(self, state_mapping: dict) -> dict:
         return {'distribution': Distribution(self._means, self._vars),

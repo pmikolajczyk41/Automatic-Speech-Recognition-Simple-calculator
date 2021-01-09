@@ -4,7 +4,7 @@ from collections import defaultdict
 from itertools import chain
 from pathlib import Path
 from random import randint
-from typing import List, Iterable, Set
+from typing import List, Iterable, Set, Tuple
 
 import numpy as np
 from graphviz import Digraph
@@ -171,11 +171,11 @@ class PathModel(Model):
                 numerator = sum((ksi[s.rank, n.rank].sum()) for ksi in ksis)
                 s.trans[nid] = numerator / denominator
 
-    def _assign_observations_bw(self, state, gammas, data) -> Iterable[FeatVec]:
-        if state.is_emitting:
-            for observation_sequence, gamma in zip(data, gammas):
-                probs = gamma[state.rank] / gamma[state.rank].sum()
-                yield (probs[:, np.newaxis] * observation_sequence).sum(axis=0)
+    def _assign_observations_bw(self, state, gammas, data) -> Tuple[List[FeatVec], List[float]]:
+        return ([o for o_seq in data for o in o_seq],
+                [gamma[state.rank][t]
+                 for observation_sequence, gamma in zip(data, gammas)
+                 for t in range(len(observation_sequence))])
 
     def train_baum_welch(self, data, iterations: int) -> None:
         for it in range(iterations):
@@ -185,8 +185,8 @@ class PathModel(Model):
             gammas, ksis = zip(*matrices)
 
             self._update_transitions_bw(gammas, ksis)
-            for s in self._states:
-                s.update_distribution(list(self._assign_observations_bw(s, gammas, data)))
+            for s in filter(lambda s: s.is_emitting, self._states):
+                s.update_distribution_weighted(*self._assign_observations_bw(s, gammas, data))
 
         sys.stderr.write(f'\rBaumWelch training completed\n')
 

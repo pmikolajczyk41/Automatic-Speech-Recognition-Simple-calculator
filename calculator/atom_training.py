@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-from calculator import ATOM_LENGTHS, ATOMS, BREAKS
+from calculator import ATOM_LENGTHS, ATOMS
 from data import TRAIN_DIR
 from data.provide import provide_mffcs
 from hmm.model import PathModel, Model
@@ -47,8 +47,6 @@ def train_atoms(viterbi_iterations: int, bw_iterations: int, version: str = '') 
 
 
 if __name__ == '__main__':
-    # train_atoms(0, 10, 'viterbi-')
-    # retrain_atoms(10, 'bw-', 'viterbi-')
-    for atom_name in BREAKS:
-        atom_model = Model.load(Path(f'trained/bw-{atom_name}.hmm'))
-        atom_model.render()
+    train_atoms(10, 0, 'viterbi-')
+    retrain_atoms(25, 'bw-', 'viterbi-')
+    # create_single_operation_recognizer('viterbi-').render()
