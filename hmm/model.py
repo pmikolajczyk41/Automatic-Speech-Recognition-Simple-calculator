@@ -71,8 +71,9 @@ class Model:
         if data['type'] == 'complex':
             return ComplexModel(states[data['initial_state']], states[data['target_state']])
 
-    def predict(self, observation_sequence: Iterable[FeatVec], beam_size: int = sys.maxsize) -> str:
-        winner = viterbi(self.initial_state(), observation_sequence, self.target_state(), beam_size)
+    def predict(self, observation_sequence: Iterable[FeatVec], beam_size: int = sys.maxsize,
+                margin_size: float = sys.maxsize) -> str:
+        winner = viterbi(self.initial_state(), observation_sequence, self.target_state(), beam_size, margin_size)
         return winner.label
 
 

@@ -5,7 +5,7 @@ import scipy.io.wavfile as wav
 from python_speech_features import delta
 from python_speech_features import mfcc
 
-from data import FeatVec, TRAIN_DIR
+from data import FeatVec, TEST_DIR
 
 
 def wav2mfcc(rate, sig) -> FeatVec:
@@ -28,4 +28,4 @@ def convert_files_within_dir(directory: Path) -> None:
 
 
 if __name__ == '__main__':
-    convert_files_within_dir(TRAIN_DIR)
+    convert_files_within_dir(TEST_DIR)

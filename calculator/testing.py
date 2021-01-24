@@ -14,7 +14,7 @@ from hmm.model import Model
 
 
 def predict_single(model: Model, labeled_sample: Tuple[str, Iterable[FeatVec]]) -> str:
-    return interpret(model.predict(labeled_sample[1]))
+    return interpret(model.predict(labeled_sample[1], margin_size=700.))
 
 
 def test(data, model, parallel: bool = False):
@@ -50,10 +50,12 @@ def test_operation(data_dir, version: str = '') -> None:
 
 
 if __name__ == '__main__':
-    data_dir = TEST_DIR / 'atoms' / 'default-speaker'
-    test_atoms(data_dir, version='viterbi-')
-    print()
-    test_atoms(data_dir, version='bw-')
-    #
-    # data_dir = TEST_DIR / 'operations' / 'single-operation' / 'default-speaker'
+    # data_dir = TEST_DIR / 'atoms' / 'default-speaker'
+    # test_atoms(data_dir, version='viterbi-')
+    # test_atoms(data_dir, version='bw-')
+    # test_atoms(data_dir, version='bw50-')
+
+    data_dir = TEST_DIR / 'operations' / 'single-operation' / 'default-speaker'
+    # test_operation(data_dir, version='viterbi-')
     # test_operation(data_dir, version='bw-')
+    test_operation(data_dir, version='bw50-')

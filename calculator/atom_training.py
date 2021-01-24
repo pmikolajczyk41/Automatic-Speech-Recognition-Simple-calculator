@@ -47,6 +47,6 @@ def train_atoms(viterbi_iterations: int, bw_iterations: int, version: str = '') 
 
 
 if __name__ == '__main__':
-    train_atoms(10, 0, 'viterbi-')
-    retrain_atoms(25, 'bw-', 'viterbi-')
+    # train_atoms(10, 0, 'viterbi-')
+    retrain_atoms(25, 'bw50-', 'bw-')
     # create_single_operation_recognizer('viterbi-').render()

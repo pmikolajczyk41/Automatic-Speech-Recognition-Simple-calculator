@@ -48,7 +48,7 @@ class App(tk.Frame):
     def _on_start_recording(self):
         self._is_recording = True
         self._update_state('Recording...')
-        self._recording = sd.rec(20 * RATE)
+        self._recording = sd.rec(1 * RATE)
 
     def _truncate_recording(self):
         border = next((i for i, x in enumerate(reversed(self._recording)) if x), None)
@@ -82,7 +82,8 @@ class App(tk.Frame):
 
 
 if __name__ == "__main__":
-    model = create_single_operation_recognizer(version='viterbi-')
+    # model = create_atom_recognizer(version='bw50-')
+    model = create_single_operation_recognizer(version='bw50-')
     root = tk.Tk()
     root.title('ASR Calculator')
     App(root, model).pack(side="top", fill="both", expand=True)

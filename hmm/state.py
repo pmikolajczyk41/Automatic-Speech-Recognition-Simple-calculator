@@ -40,7 +40,7 @@ class State:
         self.trans = [t / s for t in self.trans]
 
     def emitting_logprobability(self, observation: FeatVec) -> float:
-        if (np.isnan(observation).any()):
+        if np.isnan(observation).any():
             return -np.inf if self.is_emitting else 0.
         if not self.is_emitting:
             return -np.inf
